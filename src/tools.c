@@ -1200,7 +1200,22 @@ static char *tool_exec_arexx(cJSON *input, int *is_error)
                 fseek(docf, 0, SEEK_END);
                 doclen = ftell(docf);
                 fseek(docf, 0, SEEK_SET);
-                if (doclen > 0 && doclen < 8192) {
+                /* The limit used to be a bare 8192, and the references outgrew it:
+                 * YAM.md is 8489 bytes and PageStream.md 13098, so for those two
+                 * programs nothing was ever attached, silently. A reference that
+                 * does not fit is now announced instead of dropped. */
+                if (doclen >= TOOLS_MAX_OUTPUT) {
+                    char *noted = malloc(strlen(result) + 200);
+                    if (noted) {
+                        sprintf(noted,
+                                "%s\n[The ARexx reference for %s is too large to "
+                                "attach. Read it with read_file: "
+                                "AmigaAI:instructions/ARexx/%s.md]",
+                                result, port_name, base_port);
+                        free(result);
+                        result = noted;
+                    }
+                } else if (doclen > 0) {
                     char *docbuf = malloc(doclen + 1);
                     if (docbuf) {
                         fread(docbuf, 1, doclen, docf);
