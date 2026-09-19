@@ -16,6 +16,13 @@ Scripts must include OPTIONS RESULTS near the top, otherwise RESULT stays empty.
 Return values arrive in RESULT. Two exceptions return data in DOPUSRC instead.
 Error codes arrive in RC.
 
+A non-zero RC is not always a failure of the command itself. The codes are listed
+under ERRORS in the detailed reference (`arexx_help` DOPUS ERRORS). The one that
+misleads most: RC 20 is RXERR_NO_LISTER, so `lister query all`, `lister query source`
+and `lister query dest` return RC 20 when no such lister is open. That means "none",
+not "unknown command". Open one with `lister new` and the same query returns its handle.
+Checked against a running Directory Opus 5.84.
+
 ## Two command families
 
 Commands starting with dopus act on the program as a whole: screen, desktop,
