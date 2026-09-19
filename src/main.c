@@ -2186,8 +2186,15 @@ int main(int argc, char *argv[])
      * This gives shell commands and Claude a stable way to reference
      * the application directory (PROGDIR: doesn't work in child processes). */
     {
+        /* The program's directory, not the current one. They are the same when
+         * started from the Workbench icon, but from a Shell or a script the
+         * current directory is wherever the user happens to be, and AmigaAI:
+         * would point there: instructions/ cannot be found and chat.log lands
+         * in somebody else's drawer. */
         struct Process *pr = (struct Process *)FindTask(NULL);
-        BPTR cur = pr ? pr->pr_CurrentDir : 0;
+        BPTR cur = GetProgramDir();
+        if (!cur && pr)
+            cur = pr->pr_CurrentDir;
         if (cur) {
             BPTR lock = DupLock(cur);
             if (lock) {
