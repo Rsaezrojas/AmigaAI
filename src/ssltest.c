@@ -35,6 +35,8 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
+#include "stackswap.h"
+
 /* Library bases */
 struct Library *AmiSSLMasterBase = NULL;
 struct Library *AmiSSLBase       = NULL;
@@ -66,7 +68,18 @@ static void info(const char *msg)
     printf("       %s\n", msg);
 }
 
+/* The real program. See stackswap.h for why it is kept out of main(). */
+static int ssltest_main(int argc, char **argv) __attribute__((noinline));
+
+/* The README tells people to run this from a Shell, which means 4KB of stack.
+ * The handshake below overflows that, so the diagnostic tool itself could take
+ * the machine down after printing a clean report. */
 int main(int argc, char **argv)
+{
+    return run_with_stack(131072, ssltest_main, argc, argv);
+}
+
+static int ssltest_main(int argc, char **argv)
 {
     const char *host = "api.anthropic.com";
     int port = 443;

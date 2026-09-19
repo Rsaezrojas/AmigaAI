@@ -27,6 +27,7 @@
 #include "dt_identify.h"
 #include "base64.h"
 #include "png_convert.h"
+#include "stackswap.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,7 +54,9 @@
 /* Version string for AmigaOS "VERSION" command */
 static const char *verstag = VERSTAG;
 
-/* Request 128KB stack - MUI's nested object creation needs substantial stack */
+/* Request 128KB stack - MUI's nested object creation needs substantial stack,
+ * and so does a TLS handshake in AmiSSL. Not every startup code honours this
+ * variable, so main() also enforces it through run_with_stack(). */
 unsigned long __stack = 131072;
 
 /* Library bases */
@@ -2059,7 +2062,15 @@ static void handle_appwin_messages(void)
 
 /* ========================= main ========================= */
 
+/* The real program. See stackswap.h for why it is kept out of main(). */
+static int amigaai_main(int argc, char *argv[]) __attribute__((noinline));
+
 int main(int argc, char *argv[])
+{
+    return run_with_stack(__stack, amigaai_main, argc, argv);
+}
+
+static int amigaai_main(int argc, char *argv[])
 {
     ULONG sigs = 0;
     ULONG id;
