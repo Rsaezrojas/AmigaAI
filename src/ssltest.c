@@ -266,24 +266,60 @@ int main(int argc, char **argv)
 
         /* Quick HTTP test */
         {
-            const char *req = "GET / HTTP/1.0\r\nHost: api.anthropic.com\r\n\r\n";
+            char req[256];
             char resp[512];
-            int n;
+            int n = 0, w, tries;
 
-            SSL_write(ssl, req, strlen(req));
-            n = SSL_read(ssl, resp, sizeof(resp) - 1);
-            if (n > 0) {
-                resp[n] = '\0';
-                /* Show first line of response */
-                {
-                    char *nl = strchr(resp, '\r');
+            /* The Host header has to name the server under test. It used to be
+             * api.anthropic.com whatever the target, so testing any other host
+             * (OpenRouter, a local proxy) sent it a request for the wrong site. */
+            snprintf(req, sizeof(req),
+                     "GET / HTTP/1.0\r\nHost: %s\r\n\r\n", host);
+
+            w = SSL_write(ssl, req, strlen(req));
+            if (w <= 0) {
+                char buf[128];
+                snprintf(buf, sizeof(buf),
+                         "SSL_write failed (ssl_err=%d, errno=%d)",
+                         SSL_get_error(ssl, w), errno);
+                warn(buf);
+            } else {
+                /* A socket can report "nothing yet" before the reply arrives,
+                 * so give it a few seconds instead of giving up on the first
+                 * empty read. */
+                for (tries = 0; tries < 20; tries++) {
+                    int e;
+                    errno = 0;
+                    n = SSL_read(ssl, resp, sizeof(resp) - 1);
+                    if (n > 0) break;
+                    e = SSL_get_error(ssl, n);
+                    if (e != SSL_ERROR_WANT_READ && e != SSL_ERROR_WANT_WRITE) {
+                        /* Say why. "Could not read" alone hides the useful part:
+                         * errno 54 (connection reset) after a handshake that took
+                         * half a minute means the server gave up waiting, which
+                         * is a slow-CPU problem and not a TLS one. */
+                        char ebuf[160], buf[256];
+                        ERR_error_string_n(ERR_get_error(), ebuf, sizeof(ebuf));
+                        snprintf(buf, sizeof(buf),
+                                 "SSL_read failed (ssl_err=%d, errno=%d): %s",
+                                 e, errno, ebuf);
+                        info(buf);
+                        break;
+                    }
+                    Delay(25);
+                }
+                if (n > 0) {
+                    char *nl;
+                    resp[n] = '\0';
+                    /* Show first line of response */
+                    nl = strchr(resp, '\r');
                     if (!nl) nl = strchr(resp, '\n');
                     if (nl) *nl = '\0';
+                    printf("       HTTP response: %s\n", resp);
+                    ok("HTTPS request succeeded");
+                } else {
+                    warn("Could not read HTTP response");
                 }
-                printf("       HTTP response: %s\n", resp);
-                ok("HTTPS request succeeded");
-            } else {
-                warn("Could not read HTTP response");
             }
         }
     } else {
